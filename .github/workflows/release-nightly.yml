@@ -9,12 +9,51 @@ jobs:
   check_nightly:
     if: vars.BUILD_NIGHTLY
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       commit: ${{ steps.check_for_new_commits.outputs.commit }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      
+      - name: Sync with upstream
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/yt-dlp/yt-dlp.git || true
+          git fetch upstream
+          
+          # Try to merge upstream changes
+          if ! git merge upstream/master --no-edit; then
+            echo "Merge conflicts detected, attempting auto-resolution..."
+            
+            # For most conflicts, prefer upstream version (theirs)
+            git checkout --theirs .
+            git add -A
+            
+            # But keep our custom extractors if they exist
+            if [ -f "yt_dlp/extractor/boy18tube.py" ]; then
+              git checkout --ours yt_dlp/extractor/boy18tube.py 2>/dev/null || true
+            fi
+            if [ -f "yt_dlp/extractor/erome.py" ]; then
+              git checkout --ours yt_dlp/extractor/erome.py 2>/dev/null || true
+            fi
+            
+            # For _extractors.py, merge both versions' imports
+            if git diff --name-only --diff-filter=U | grep -q "_extractors.py"; then
+              echo "Merging extractor registrations..."
+              # Take upstream version as base, we'll add our extractors back in release-master
+              git checkout --theirs yt_dlp/extractor/_extractors.py
+            fi
+            
+            git add -A
+            git commit -m "Merge upstream changes (auto-resolved conflicts)" --no-edit || true
+          fi
+          
+          git push origin master
+      
       - name: Check for new commits
         id: check_for_new_commits
         run: |
