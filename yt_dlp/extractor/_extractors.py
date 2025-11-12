@@ -286,6 +286,7 @@ from .boosty import BoostyIE
 from .bostonglobe import BostonGlobeIE
 from .box import BoxIE
 from .boxcast import BoxCastVideoIE
+from .boy18tube import Boy18TubeIE
 from .bpb import BpbIE
 from .br import BRIE
 from .brainpop import (
@@ -584,6 +585,10 @@ from .eplus import EplusIbIE
 from .epoch import EpochIE
 from .eporner import EpornerIE
 from .erocast import ErocastIE
+from .erome import (
+    EromeIE,
+    EromeProfileIE,
+)
 from .eroprofile import (
     EroProfileAlbumIE,
     EroProfileIE,
