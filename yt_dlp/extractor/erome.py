@@ -4,12 +4,15 @@ from .common import InfoExtractor
 from ..utils import (
     ExtractorError,
     clean_html,
+    merge_dicts,
     orderedSet,
+    unified_timestamp,
     url_or_none,
 )
 
 
 class EromeIE(InfoExtractor):
+    IE_DESC = 'EroMe'
     _VALID_URL = r'https?://(?:www\.)?erome\.com/a/(?P<id>[0-9A-Za-z]+)'
     _TESTS = [{
         'url': 'https://www.erome.com/a/JlMZFf4f',
@@ -20,10 +23,14 @@ class EromeIE(InfoExtractor):
             'description': 'md5:02591cd58c09a183e003b9a7a27ab79d',
         },
         'playlist_mincount': 40,
+    }, {
+        'url': 'https://erome.com/a/TestAlbum123',
+        'only_matching': True,
     }]
 
     def _real_extract(self, url):
         album_id = self._match_id(url)
+        display_id = album_id
 
         # Set age verification cookies before downloading
         self._set_cookie('erome.com', 'age_verified', '1')
@@ -40,11 +47,14 @@ class EromeIE(InfoExtractor):
         ]):
             raise ExtractorError('Album not found', expected=True)
 
+        # Try to extract JSON-LD structured data first
+        json_ld = self._search_json_ld(webpage, album_id, default={})
+
         # Extract title with better patterns
-        title = self._html_search_regex(
+        title = (json_ld.get('title') or self._html_search_regex(
             [r'<h1[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</h1>',
              r'<title>([^<]+)</title>'],
-            webpage, 'title', default='Untitled')
+            webpage, 'title', default=None) or 'Untitled')
 
         # Clean title
         title = clean_html(title) or 'Untitled'
@@ -54,14 +64,26 @@ class EromeIE(InfoExtractor):
             title = 'Untitled'
 
         # Extract description if available
-        description = self._html_search_regex(
+        description = (json_ld.get('description')
+                       or self._og_search_description(webpage, default=None)
+                       or self._html_search_regex(
             r'<meta name="description" content="([^"]+)"',
-            webpage, 'description', fatal=False)
+            webpage, 'description', fatal=False))
 
-        # Extract uploader - skip for now as pattern may vary
-        uploader = None
+        # Extract uploader
+        uploader = (json_ld.get('uploader')
+                    or self._html_search_regex(
+            r'<a[^>]+href="/[^"]+"[^>]*class="[^"]*username[^"]*"[^>]*>([^<]+)</a>',
+            webpage, 'uploader', default=None))
+
+        # Extract timestamp
+        timestamp = (json_ld.get('timestamp')
+                     or unified_timestamp(self._html_search_regex(
+                         r'<span[^>]+class="[^"]*date[^"]*"[^>]*>([^<]+)</span>',
+                         webpage, 'timestamp', default=None)))
 
         entries = []
+        # Note: json_ld and display_id used in final return statement
 
         # Find video sources with multiple patterns
         video_patterns = [
@@ -144,11 +166,24 @@ class EromeIE(InfoExtractor):
         if not entries:
             raise ExtractorError('No media found', expected=True)
 
-        return self.playlist_result(
-            entries, album_id, title, description, uploader=uploader, age_limit=18)
+        # Use _rta_search for age limit detection (will return 18 for adult sites)
+        age_limit = self._rta_search(webpage) or 18
+
+        return merge_dicts(json_ld, {
+            '_type': 'playlist',
+            'id': album_id,
+            'display_id': display_id,
+            'title': title,
+            'description': description,
+            'entries': entries,
+            'uploader': uploader,
+            'timestamp': timestamp,
+            'age_limit': age_limit,
+        })
 
 
 class EromeProfileIE(InfoExtractor):
+    IE_DESC = 'EroMe user profile'
     _VALID_URL = r'https?://(?:www\.)?erome\.com/(?P<id>[a-zA-Z0-9_-]+)(?:\?page=\d+)?'
     _TESTS = [{
         'url': 'https://www.erome.com/username',
@@ -238,6 +273,9 @@ class EromeProfileIE(InfoExtractor):
         ]):
             raise ExtractorError('Profile not found', expected=True)
 
+        # Try to extract JSON-LD structured data first
+        json_ld = self._search_json_ld(webpage, profile_id, default={})
+
         # Extract profile title
         title = self._html_search_regex(
             [r'<h1[^>]*class="[^"]*username[^"]*"[^>]*>([^<]+)</h1>',
@@ -247,15 +285,20 @@ class EromeProfileIE(InfoExtractor):
         title = clean_html(title).strip()
 
         # Extract profile description if available
-        description = self._html_search_regex(
-            r'<meta name="description" content="([^"]+)"',
-            webpage, 'description', fatal=False)
+        description = (
+            self._og_search_description(webpage, default=None)
+            or self._html_search_regex(
+                r'<meta name="description" content="([^"]+)"',
+                webpage, 'description', fatal=False))
 
-        return {
+        # Use _rta_search for age limit detection
+        age_limit = self._rta_search(webpage) or 18
+
+        return merge_dicts(json_ld, {
             '_type': 'playlist',
             'id': profile_id,
             'title': title,
             'description': description,
             'entries': self._entries(profile_id),
-            'age_limit': 18,
-        }
+            'age_limit': age_limit,
+        })
