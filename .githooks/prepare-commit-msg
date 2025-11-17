@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Automatically add "Authored by: <github-username>" to commit messages
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Only add for regular commits (not merge, squash, etc.)
+if [ -z "$COMMIT_SOURCE" ] || [ "$COMMIT_SOURCE" = "message" ]; then
+    # Check if "Authored by:" already exists
+    if ! grep -q "^Authored by:" "$COMMIT_MSG_FILE"; then
+        # Get GitHub username from git config
+        GITHUB_USER=$(git config user.github)
+        
+        # If not set, try to extract from remote URL
+        if [ -z "$GITHUB_USER" ]; then
+            REMOTE_URL=$(git config remote.origin.url)
+            GITHUB_USER=$(echo "$REMOTE_URL" | sed -n 's|.*github\.com[:/]\([^/]*\)/.*|\1|p')
+        fi
+        
+        # Add a blank line and the Authored by line if the message is not empty
+        if [ -s "$COMMIT_MSG_FILE" ] && ! grep -q "^$" "$COMMIT_MSG_FILE"; then
+            echo "" >> "$COMMIT_MSG_FILE"
+        fi
+        echo "Authored by: $GITHUB_USER" >> "$COMMIT_MSG_FILE"
+    fi
+fi
