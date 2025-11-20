@@ -1709,6 +1709,7 @@ from .reddit import RedditIE
 from .redge import RedCDNLivxIE
 from .redgifs import (
     RedGifsIE,
+    RedGifsNicheIE,
     RedGifsSearchIE,
     RedGifsUserIE,
 )

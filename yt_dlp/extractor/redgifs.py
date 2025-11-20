@@ -284,3 +284,38 @@ class RedGifsUserIE(RedGifsBaseIE):
 
         return self.playlist_result(
             entries, playlist_id, username, f'RedGifs user {username}, ordered by {order}')
+
+
+class RedGifsNicheIE(RedGifsBaseIE):
+    IE_DESC = 'Redgifs niche'
+    _VALID_URL = r'https?://(?:www\.)?redgifs\.com/niches/(?P<slug>[^/?#]+)(?:\?(?P<query>[^#]+))?'
+    _PAGE_SIZE = 100
+    _TESTS = [{
+        'url': 'https://www.redgifs.com/niches/hot-guys',
+        'info_dict': {
+            'id': 'hot-guys',
+            'title': 'Hot Guys',
+            'description': 'RedGifs niche Hot Guys, ordered by recent',
+        },
+        'playlist_mincount': 100,
+    }]
+
+    def _real_extract(self, url):
+        slug, query_str = self._match_valid_url(url).group('slug', 'query')
+        playlist_id = f'{slug}?{query_str}' if query_str else slug
+
+        query = urllib.parse.parse_qs(query_str) if query_str else {}
+        order = query.get('order', ('recent',))[0]
+
+        niche_info = self._call_api(f'niches/{slug}', slug, note='Downloading niche metadata').get('niche') or {}
+        entries = self._paged_entries(f'niches/{slug}/gifs', playlist_id, query, {
+            'order': 'recent',
+            'type': None,
+            'sexuality': None,
+        })
+
+        title = niche_info.get('name') or slug
+        description = niche_info.get('description')
+        return self.playlist_result(
+            entries, playlist_id, title, f'RedGifs niche {title}, ordered by {order}',
+            description=description)
