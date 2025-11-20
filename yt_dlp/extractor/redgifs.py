@@ -306,16 +306,47 @@ class RedGifsNicheIE(RedGifsBaseIE):
 
         query = urllib.parse.parse_qs(query_str) if query_str else {}
         order = query.get('order', ('recent',))[0]
-
-        niche_info = self._call_api(f'niches/{slug}', slug, note='Downloading niche metadata').get('niche') or {}
-        entries = self._paged_entries(f'niches/{slug}/gifs', playlist_id, query, {
+        requested_page = int_or_none(query.get('page', (None,))[0])
+        api_query = self._prepare_api_query(query, {
             'order': 'recent',
             'type': None,
             'sexuality': None,
         })
+
+        niche_info = self._call_api(f'niches/{slug}', slug, note='Downloading niche metadata').get('niche') or {}
+        entries = (
+            self._niche_page_entries(slug, playlist_id, api_query, requested_page)
+            if requested_page else self._niche_entries(slug, playlist_id, api_query))
 
         title = niche_info.get('name') or slug
         description = niche_info.get('description')
         return self.playlist_result(
             entries, playlist_id, title, f'RedGifs niche {title}, ordered by {order}',
             description=description)
+
+    def _niche_page_entries(self, slug, playlist_id, api_query, page):
+        data = self._download_niche_page(slug, playlist_id, api_query, (page or 0))
+        for gif in data.get('gifs') or []:
+            yield self._parse_gif_data(gif)
+
+    def _niche_entries(self, slug, playlist_id, api_query):
+        page = 0
+        total_pages = None
+        while True:
+            data = self._download_niche_page(slug, playlist_id, api_query, page)
+            gifs = data.get('gifs') or []
+            for gif in gifs:
+                yield self._parse_gif_data(gif)
+            if not gifs:
+                break
+            total_pages = total_pages or int_or_none(data.get('pages'))
+            if total_pages and page + 1 >= total_pages:
+                break
+            page += 1
+
+    def _download_niche_page(self, slug, playlist_id, api_query, page):
+        query = dict(api_query)
+        query['page'] = page + 1
+        return self._call_api(
+            f'niches/{slug}/gifs', playlist_id, query=query,
+            note=f'Downloading JSON metadata page {page + 1}')
