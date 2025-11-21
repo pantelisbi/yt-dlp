@@ -40,6 +40,10 @@ jobs:
             if [ -f "yt_dlp/extractor/erome.py" ]; then
               git checkout --ours yt_dlp/extractor/erome.py 2>/dev/null || true
             fi
+            # Also keep our modified RedGifs extractor if it exists
+            if [ -f "yt_dlp/extractor/redgifs.py" ]; then
+              git checkout --ours yt_dlp/extractor/redgifs.py 2>/dev/null || true
+            fi
             
             # For _extractors.py, merge both versions' imports
             if git diff --name-only --diff-filter=U | grep -q "_extractors.py"; then

@@ -1,4 +1,5 @@
 import functools
+import time
 import urllib.parse
 
 from .common import InfoExtractor
@@ -72,27 +73,43 @@ class RedGifsBaseIE(InfoExtractor):
         self._API_HEADERS['authorization'] = f'Bearer {auth["token"]}'
 
     def _call_api(self, ep, video_id, **kwargs):
-        for first_attempt in True, False:
-            if 'authorization' not in self._API_HEADERS:
-                self._fetch_oauth_token(video_id)
+        for retry in self.RetryManager():
             try:
-                headers = dict(self._API_HEADERS)
-                headers['x-customheader'] = f'https://www.redgifs.com/watch/{video_id}'
-                data = self._download_json(
-                    f'https://api.redgifs.com/v2/{ep}', video_id, headers=headers, **kwargs)
-                break
+                # Refresh token if needed or on 401
+                for first_attempt in True, False:
+                    if 'authorization' not in self._API_HEADERS:
+                        self._fetch_oauth_token(video_id)
+                    try:
+                        headers = dict(self._API_HEADERS)
+                        headers['x-customheader'] = f'https://www.redgifs.com/watch/{video_id}'
+                        data = self._download_json(
+                            f'https://api.redgifs.com/v2/{ep}', video_id, headers=headers, **kwargs)
+                        break
+                    except ExtractorError as e:
+                        if first_attempt and isinstance(e.cause, HTTPError) and e.cause.status == 401:
+                            del self._API_HEADERS['authorization']  # refresh the token
+                            continue
+                        raise
+                
+                if 'error' in data:
+                    raise ExtractorError(f'RedGifs said: {data["error"]}', expected=True, video_id=video_id)
+                return data
             except ExtractorError as e:
-                if first_attempt and isinstance(e.cause, HTTPError) and e.cause.status == 401:
-                    del self._API_HEADERS['authorization']  # refresh the token
+                # Handle 429 Too Many Requests with retry
+                if isinstance(e.cause, HTTPError) and e.cause.status == 429:
+                    self.report_warning(
+                        'Rate limit reached. Retrying with exponential backoff...', only_once=True)
+                    retry.error = e.cause
                     continue
                 raise
 
-        if 'error' in data:
-            raise ExtractorError(f'RedGifs said: {data["error"]}', expected=True, video_id=video_id)
-        return data
-
     def _fetch_page(self, ep, video_id, query, page):
         query['page'] = page + 1
+        # Add a small delay between paginated requests to avoid rate limiting
+        if page > 0:
+            sleep_interval = self.get_param('sleep_interval_requests') or 0.5
+            if sleep_interval > 0:
+                time.sleep(sleep_interval)
         data = self._call_api(
             ep, video_id, query=query, note=f'Downloading JSON metadata page {page + 1}')
 
@@ -347,6 +364,11 @@ class RedGifsNicheIE(RedGifsBaseIE):
     def _download_niche_page(self, slug, playlist_id, api_query, page):
         query = dict(api_query)
         query['page'] = page + 1
+        # Add a small delay between paginated requests to avoid rate limiting
+        if page > 0:
+            sleep_interval = self.get_param('sleep_interval_requests') or 0.5
+            if sleep_interval > 0:
+                time.sleep(sleep_interval)
         return self._call_api(
             f'niches/{slug}/gifs', playlist_id, query=query,
             note=f'Downloading JSON metadata page {page + 1}')
