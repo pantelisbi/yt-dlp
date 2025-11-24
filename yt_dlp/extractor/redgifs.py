@@ -90,7 +90,6 @@ class RedGifsBaseIE(InfoExtractor):
                             del self._API_HEADERS['authorization']  # refresh the token
                             continue
                         raise
-                
                 if 'error' in data:
                     raise ExtractorError(f'RedGifs said: {data["error"]}', expected=True, video_id=video_id)
                 return data
