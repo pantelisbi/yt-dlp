@@ -75,6 +75,7 @@ from .afreecatv import (
     AfreecaTVLiveIE,
     AfreecaTVUserIE,
 )
+from .agalega import AGalegaIE
 from .agora import (
     TokFMAuditionIE,
     TokFMPodcastIE,
@@ -1288,6 +1289,10 @@ from .nerdcubed import NerdCubedFeedIE
 from .nest import (
     NestClipIE,
     NestIE,
+)
+from .netapp import (
+    NetAppCollectionIE,
+    NetAppVideoIE,
 )
 from .neteasemusic import (
     NetEaseMusicAlbumIE,
