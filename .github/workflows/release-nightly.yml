@@ -56,7 +56,8 @@ jobs:
             git commit -m "Merge upstream changes (auto-resolved conflicts)" --no-edit || true
           fi
           
-          git push origin master
+          # Explicitly name the branch ref so the push is not ambiguous even if a tag named master exists
+          git push origin HEAD:refs/heads/master
       
       - name: Check for new commits
         id: check_for_new_commits
