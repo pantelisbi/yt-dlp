@@ -294,6 +294,9 @@ After you have ensured this site is distributing its content legally, you can fo
     $ git push origin yourextractor
     ```
 
+
+**Note:** Do **not** create tags that have the same name as branches (for example, `master`). Such tags create ambiguous ref names (a short name like `master` can match both a branch and a tag) and may cause `git push` to fail. This repository has a CI check that will fail if a tag name collides with a branch name; if you have a legitimate reason to create such a tag, please coordinate with the maintainers first.
+
 1. Finally, [create a pull request](https://help.github.com/articles/creating-a-pull-request). We'll then review and merge it.
 
 In any case, thank you very much for your contributions!
