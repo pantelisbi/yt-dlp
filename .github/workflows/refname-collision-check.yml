@@ -1,0 +1,37 @@
+name: Refname collision check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  check-refname-collisions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (fetch all tags/branches)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for tag/branch name collisions
+        run: |
+          set -euo pipefail
+          echo "Listing branches and tags..."
+          git for-each-ref --format='%(refname:short)' refs/heads > /tmp/branches.txt
+          git for-each-ref --format='%(refname:short)' refs/tags > /tmp/tags.txt || true
+          echo "Branches:"
+          cat /tmp/branches.txt || true
+          echo "Tags:"
+          cat /tmp/tags.txt || true
+
+          # Find common names
+          collisions=$(comm -12 <(sort /tmp/branches.txt) <(sort /tmp/tags.txt) || true)
+          if [ -n "${collisions}" ]; then
+            echo "Error: Found tag/branch name collisions:" >&2
+            echo "${collisions}" >&2
+            exit 1
+          fi
+
+          echo "No tag/branch name collisions found."
