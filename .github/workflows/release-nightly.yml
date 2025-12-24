@@ -8,12 +8,9 @@ permissions: {}
 jobs:
   check_nightly:
     if: vars.BUILD_NIGHTLY
-    permissions:
-      contents: read
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      workflows: write
     outputs:
       commit: ${{ steps.check_for_new_commits.outputs.commit }}
     steps:
